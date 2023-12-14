@@ -3,7 +3,7 @@ import numpy as np
 import streamlit as st
 from collections import defaultdict
 from scipy import stats
-import base64
+import base64  # Add this line to import the base64 module
 
 # Functions for cartoonization
 
@@ -64,40 +64,25 @@ def K_histogram(hist):
             C = np.array(sorted(new_C))
     return C
 
-
 def caart(img, bilateral_filter_value, canny_threshold1, canny_threshold2, erode_kernel_size):
     kernel = np.ones((2, 2), np.uint8)
     output = np.array(img)
+    x, y, c = output.shape
 
-    if len(output.shape) == 3:  # Check if the image is in color
-        x, y, c = output.shape
-    else:  # Grayscale image
-        x, y = output.shape
-        c = 1
-
-    if c == 3:  # Apply bilateral filter for color images
-        for i in range(c):
-            output[:, :, i] = cv2.bilateralFilter(output[:, :, i], bilateral_filter_value, 150, 150)
-    else:  # Skip bilateral filter for grayscale images
-        output = cv2.bilateralFilter(output, bilateral_filter_value, 150, 150)
+    for i in range(c):
+        output[:, :, i] = cv2.bilateralFilter(output[:, :, i], bilateral_filter_value, 150, 150)
 
     edge = cv2.Canny(output, canny_threshold1, canny_threshold2)
-    
-    if c == 3:  # Convert to HSV for color images
-        output = cv2.cvtColor(output, cv2.COLOR_RGB2HSV)
+    output = cv2.cvtColor(output, cv2.COLOR_RGB2HSV)
 
     hists = []
 
-    if c == 3:
-        hist, _ = np.histogram(output[:, :, 0], bins=np.arange(180 + 1))
-        hists.append(hist)
-        hist, _ = np.histogram(output[:, :, 1], bins=np.arange(256 + 1))
-        hists.append(hist)
-        hist, _ = np.histogram(output[:, :, 2], bins=np.arange(256 + 1))
-        hists.append(hist)
-    else:
-        hist, _ = np.histogram(output, bins=np.arange(256 + 1))
-        hists.append(hist)
+    hist, _ = np.histogram(output[:, :, 0], bins=np.arange(180 + 1))
+    hists.append(hist)
+    hist, _ = np.histogram(output[:, :, 1], bins=np.arange(256 + 1))
+    hists.append(hist)
+    hist, _ = np.histogram(output[:, :, 2], bins=np.arange(256 + 1))
+    hists.append(hist)
 
     C = []
     for h in hists:
@@ -109,27 +94,15 @@ def caart(img, bilateral_filter_value, canny_threshold1, canny_threshold2, erode
         index = np.argmin(np.abs(channel[:, np.newaxis] - C[i]), axis=1)
         output[:, i] = C[i][index]
     output = output.reshape((x, y, c))
-
-    if c == 3:  # Convert back to RGB for color images
-        output = cv2.cvtColor(output, cv2.COLOR_HSV2RGB)
+    output = cv2.cvtColor(output, cv2.COLOR_HSV2RGB)
 
     contours, _ = cv2.findContours(edge, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     cv2.drawContours(output, contours, -1, 0, thickness=1)
 
-    for i in range(c):
+    for i in range(3):
         output[:, :, i] = cv2.erode(output[:, :, i], kernel, iterations=erode_kernel_size)
 
     return output
-
-
-
-def apply_black_and_white(img):
-    return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-
-def apply_rotation(img, angle):
-    rows, cols, _ = img.shape
-    M = cv2.getRotationMatrix2D((cols / 2, rows / 2), angle, 1)
-    return cv2.warpAffine(img, M, (cols, rows))
 
 def main():
     bg_container = st.container()
@@ -157,9 +130,7 @@ def main():
     canny_threshold1 = st.sidebar.slider("Canny Threshold 1", 0, 255, 100)
     canny_threshold2 = st.sidebar.slider("Canny Threshold 2", 0, 255, 200)
     erode_kernel_size = st.sidebar.slider("Erode Kernel Size", 1, 5, 2)
-    rotation_angle = st.sidebar.slider("Rotation Angle", -180, 180, 0)
-    black_and_white = st.sidebar.checkbox("Black and White")
-    
+
     start_stop_button = st.button("Start/Stop Video")
 
     stframe = st.empty()
@@ -173,18 +144,11 @@ def main():
             # Initialize VideoWriter if not done yet
             out = cv2.VideoWriter('out.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 30, (frame.shape[1], frame.shape[0]))
 
-        if black_and_white:
-            frame = apply_black_and_white(frame)
-
-        if rotation_angle != 0:
-            frame = apply_rotation(frame, rotation_angle)
-
         cartoon_frame = caart(frame, bilateral_filter_value, canny_threshold1, canny_threshold2, erode_kernel_size)
 
         out.write(cartoon_frame)
 
-        # Display the cartoonized frame
-        stframe.image(cartoon_frame, channels="BGR" if len(cartoon_frame.shape) == 3 and cartoon_frame.shape[2] == 3 else "GRAY")
+        stframe.image(cartoon_frame, channels="BGR")
 
     # Release resources when the loop is stopped
     if out is not None:
@@ -197,7 +161,6 @@ def main():
 
     if download_button:
         st.markdown(get_binary_file_downloader_html('out.mp4', 'Video'), unsafe_allow_html=True)
-
 
 # Function to generate a download link for the recorded video
 def get_binary_file_downloader_html(file_path, file_label='File'):
