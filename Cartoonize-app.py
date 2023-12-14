@@ -170,5 +170,6 @@ def get_binary_file_downloader_html(file_path, file_label='File'):
     href = f'<a href="data:file/mp4;base64,{b64}" download="{file_path}">Download {file_label}</a>'
     return href
 
+# Calls the main function
 if __name__ == '__main__':
     main()
